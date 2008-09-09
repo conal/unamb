@@ -24,15 +24,33 @@ License:             BSD3
 Stability:           experimental
 build-type:          Simple
 
+Flag test
+  Description: Enable testing
+  Default:     False
+
 Library
   hs-Source-Dirs:      src
   Extensions:
-  Build-Depends:       base, QuickCheck, checkers
+  Build-Depends:       base
   Exposed-Modules:     
                        Data.Unamb
-                       Tests
+--                       Tests
   ghc-options:         -Wall
 
+-- Support testing with a pattern from Sean Leather
+-- Compilation works, but the executable segfaults:
+--   both identity: Segmentation fault/access violation in generated code
+-- I have no idea what could be going on there.  The tests work fine
+-- in ghci but segfault when compiled via "ghc --make Tests" also.
+Executable test-unamb
+  hs-source-dirs:       src
+  main-is:              Tests.hs
+  -- Only enable the build-depends here if configured with "-ftest". This
+  -- keeps users from having to install QuickCheck 2 in order to use EMGM.
+  if flag(test)
+    build-depends:      QuickCheck, checkers
+  else
+    buildable:          False
 
 -- The Tests need QuickCheck, checkers
 -- Maybe make an executable target.

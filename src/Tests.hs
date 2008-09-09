@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 ----------------------------------------------------------------------
 -- |
--- Module      :  Tests
+-- Module      :  Main
 -- Copyright   :  (c) Conal Elliott 2008
 -- License     :  BSD3
 -- 
@@ -11,7 +11,7 @@
 -- Unamb tests
 ----------------------------------------------------------------------
 
-module Tests where
+module Main where
 
 import Test.QuickCheck.Checkers
 import Test.QuickCheck.Later
