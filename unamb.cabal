@@ -30,6 +30,11 @@ Library
   Build-Depends:       base, QuickCheck, checkers
   Exposed-Modules:     
                        Data.Unamb
+                       Tests
   ghc-options:         -Wall
+
+
+-- The Tests need QuickCheck, checkers
+-- Maybe make an executable target.
 
 --  ghc-prof-options:    -prof -auto-all 
