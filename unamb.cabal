@@ -46,11 +46,11 @@ Library
 -- in ghci but segfault when compiled via "ghc --make Main" also.
 
 Executable test-unamb
-  hs-source-dirs:       tests
-  main-is:              Main.hs
+  hs-source-dirs:       src, tests
+  main-is:              Tests.hs
   -- Only enable the build-depends here if configured with "-ftest". This
   -- keeps users from having to install QuickCheck 2 in order to use EMGM.
   if flag(test)
-    build-depends:      QuickCheck, checkers, unamb
+    build-depends:      QuickCheck, checkers
   else
     buildable:          False
