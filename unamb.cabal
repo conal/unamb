@@ -34,25 +34,23 @@ Library
   Build-Depends:       base
   Exposed-Modules:     
                        Data.Unamb
---                       Tests
   ghc-options:         -Wall
+
+--  ghc-prof-options:    -prof -auto-all 
+
 
 -- Support testing with a pattern from Sean Leather
 -- Compilation works, but the executable segfaults:
 --   both identity: Segmentation fault/access violation in generated code
 -- I have no idea what could be going on there.  The tests work fine
--- in ghci but segfault when compiled via "ghc --make Tests" also.
+-- in ghci but segfault when compiled via "ghc --make Main" also.
+
 Executable test-unamb
-  hs-source-dirs:       src
-  main-is:              Tests.hs
+  hs-source-dirs:       tests
+  main-is:              Main.hs
   -- Only enable the build-depends here if configured with "-ftest". This
   -- keeps users from having to install QuickCheck 2 in order to use EMGM.
   if flag(test)
-    build-depends:      QuickCheck, checkers
+    build-depends:      QuickCheck, checkers, unamb
   else
     buildable:          False
-
--- The Tests need QuickCheck, checkers
--- Maybe make an executable target.
-
---  ghc-prof-options:    -prof -auto-all 
