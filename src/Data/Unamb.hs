@@ -48,6 +48,7 @@ race a b = do
     ta <- forkIO (a >>= putMVar v)
     tb <- forkIO (b >>= putMVar v)
     x <- takeMVar v
+    -- TODO: why forkIO in the next line?
     forkIO (killThread ta >> killThread tb)
     return x
 
