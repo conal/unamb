@@ -43,14 +43,13 @@ a `amb` b = evaluate a `race` evaluate b
 -- whichever finishes first.  See also 'amb'.  Thanks to Spencer Janssen
 -- for this simple version.
 race :: IO a -> IO a -> IO a
-race a b = do
-    v <- newEmptyMVar
-    ta <- forkIO (a >>= putMVar v)
-    tb <- forkIO (b >>= putMVar v)
-    x <- takeMVar v
-    -- TODO: why forkIO in the next line?
-    forkIO (killThread ta >> killThread tb)
-    return x
+a `race` b = do v  <- newEmptyMVar
+                ta <- forkIO (a >>= putMVar v)
+                tb <- forkIO (b >>= putMVar v)
+                x  <- takeMVar v
+                killThread ta
+                killThread tb
+                return x
 
 -- Without using unsafePerformIO, is there a way to define a
 -- non-terminating but non-erroring pure value that consume very little

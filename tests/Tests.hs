@@ -35,8 +35,11 @@ batch = ( "FRP.Reactive.Unamb"
    unambt :: NumT -> NumT -> NumT
    unambt = unamb
 
--- The commutative and associative test take a long time because of the
--- intentional delays.  I don't understand the magnitude of the delays,
--- however.  They appear to be 1000 times what I'd expect.  For instance,
--- 0.00001 sec time 500 tests is 5 milliseconds, but I count about 10
--- seconds.
+-- On Windows the commutative and associative test take a long time
+-- because of the intentional delays.  I don't understand the magnitude of
+-- the delays, however.  They appear to be 1000 times what I'd expect.
+-- For instance, 0.00001 sec time 500 tests is 5 milliseconds, but I count
+-- about 10 seconds.
+-- 
+-- On Linux, everything is zippy.
+
