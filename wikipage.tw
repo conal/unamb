@@ -7,9 +7,9 @@
 <hask>unamb</hask> was originally a part of [[Reactive]].  I moved it to its own package in order to encourage experimentation.
 
 Besides this wiki page, here are more ways to find out about unamb:
-* Read [http://code.haskell.org/unamb/doc/html/ the library documentation].
-* Get the code repository: '''<tt>darcs get http://code.haskell.org/unamb</tt>'''.
-* Install from [http://hackage.haskell.org/cgi-bin/hackage-scripts/package/unamb Hackage].
-* See the [[unamb/Versions| version history]].
+* Visit the [http://hackage.haskell.org/cgi-bin/hackage-scripts/package/unamb Hackage page] for library documentation and to download & install.
+* Or install with <tt>cabal install unamb</tt>.
+* Get the code repository: <tt>darcs get http://code.haskell.org/unamb</tt>.
+<!-- * See the [[unamb/Versions| version history]]. -->
 
 Please leave comments at the [[Talk:unamb|Talk page]].
