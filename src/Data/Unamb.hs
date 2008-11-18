@@ -18,8 +18,6 @@ module Data.Unamb
   (
     bottom, unamb, assuming, asAgree, hang
   , amb, race
-  -- * Some useful special applications of 'unamb'
-  , parCommute, por, pand, pplus, ptimes
   ) where
 
 import Prelude hiding (catch)
@@ -52,14 +50,6 @@ a `amb` b = evaluate a `race` evaluate b
 -- for this simple version.
 race :: IO a -> IO a -> IO a
 
--- a `race` b = do v  <- newEmptyMVar
---                 ta <- forkIO (a >>= putMVar v)
---                 tb <- forkIO (b >>= putMVar v)
---                 x  <- takeMVar v
---                 killThread ta
---                 killThread tb
---                 return x
-
 a `race` b = do v  <- newEmptyMVar
                 ta <- forkIO' (a >>= putMVar v)
                 tb <- forkIO' (b >>= putMVar v)
@@ -69,11 +59,11 @@ a `race` b = do v  <- newEmptyMVar
                 return x
 
 -- Use a particular exception as our representation for waiting forever.
--- A thread can "hang" efficiently by throwing that exception.  If both
+-- A thread can bottom-out efficiently by throwing that exception.  If both
 -- threads bail out, then the 'takeMVar' would block.  In that case, the
--- run-time system would notice and raise BlockedOnDeadMVar.  I'd then
+-- run-time system would notice and raise 'BlockedOnDeadMVar'.  I'd then
 -- want to convert that exception into the one that wait-forever
--- exception.  As an expedient hack, I use BlockedOnDeadMVar as the
+-- exception.  As an expedient hack, I use 'BlockedOnDeadMVar' as the
 -- wait-forever exception, so that no conversion is needed.  Perhaps
 -- revisit this choice, and define our own exception class, for clarity
 -- and easier debugging.
