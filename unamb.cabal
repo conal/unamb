@@ -1,5 +1,5 @@
 Name:                unamb
-Version:             0.0.2
+Version:             0.1.0
 Cabal-Version:       >= 1.2
 Synopsis:            Unambiguous choice
 Category:            Concurrency, Data, Other
@@ -10,9 +10,6 @@ Description:
   package in order to encourage experimentation.
   .
   Project wiki page: <http://haskell.org/haskellwiki/unamb>
-  .
-  The module documentation pages have links to colorized source code and
-  to wiki pages where you can read and contribute user comments.  Enjoy!
   .
   &#169; 2008 by Conal Elliott; BSD3 license.
   .
