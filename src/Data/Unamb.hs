@@ -10,6 +10,10 @@
 -- Stability   :  experimental
 -- 
 -- Unambiguous choice
+-- 
+-- For non-flat types (where values may be partially defined, rather than
+-- necessarily bottom or fully defined) and information merging, see the
+-- '''lub''' package.
 ----------------------------------------------------------------------
 
 #include "Typeable.h"
@@ -18,14 +22,12 @@ module Data.Unamb
   (
     bottom, unamb, assuming, asAgree, hang
   , amb, race
+  -- * Some useful special applications of 'amb'
+  , parCommute, por, pand
   ) where
 
 import Prelude hiding (catch)
--- For hang
--- import Control.Monad (forever)
 import System.IO.Unsafe
-
--- import Data.Dynamic
 
 import Control.Concurrent
 import Control.Exception
@@ -106,6 +108,8 @@ a `asAgree` b = assuming (a == b) a
 
 {-
 
+import Data.Dynamic  -- move up
+
 data WaitForever = WaitForever
 
 INSTANCE_TYPEABLE0(WaitForever,waitForeverTc,"WaitForever")
@@ -117,3 +121,36 @@ instance Exception WaitForever
 -}
 
 ----
+
+
+{--------------------------------------------------------------------
+    Some useful special applications of 'unamb'
+--------------------------------------------------------------------}
+
+-- | Turn a binary commutative operation into that tries both orders in
+-- parallel.  Useful when there are special cases that don't require
+-- evaluating both arguments.  For non-flat types and information merging,
+-- see @parCommute@ in the @lub@ package.
+parCommute :: (a -> a -> b) -> (a -> a -> b)
+parCommute op x y = (x `op` y) `unamb` (y `op` x)
+
+-- | Parallel or
+por :: Bool -> Bool -> Bool
+por = parCommute (||)
+
+-- | Parallel and
+pand :: Bool -> Bool -> Bool
+pand = parCommute (&&)
+
+{-
+
+-- Examples:
+
+bottom `por` True
+True `por` bottom
+
+bottom `pand` False
+False `pand` bottom
+
+-}
+

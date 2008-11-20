@@ -1,4 +1,5 @@
 [[Category:Packages]]
+[[Category:Concurrency]]
 
 == Abstract ==
 
@@ -13,3 +14,5 @@ Besides this wiki page, here are more ways to find out about unamb:
 <!-- * See the [[unamb/Versions| version history]]. -->
 
 Please leave comments at the [[Talk:unamb|Talk page]].
+
+As of version 0.1.1, unamb requires ghc 6.10 or better.
