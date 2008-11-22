@@ -16,7 +16,7 @@
 -- '''lub''' package.
 ----------------------------------------------------------------------
 
-#include "Typeable.h"
+-- #include "Typeable.h"
 
 module Data.Unamb
   (
@@ -29,7 +29,7 @@ module Data.Unamb
 import Prelude hiding (catch)
 import System.IO.Unsafe
 import Data.Function (on)
-
+import Control.Monad.Instances () -- for function functor
 import Control.Concurrent
 import Control.Exception
   (evaluate, ErrorCall(..), BlockedOnDeadMVar(..), catch, throw)
@@ -42,7 +42,6 @@ unamb :: a -> a -> a
 unamb = (fmap.fmap) unsafePerformIO amb
 
 -- a `unamb` b = unsafePerformIO (a `amb` b)
-
 
 
 -- | Ambiguous choice operator.  Yield either value.  Evaluates in
