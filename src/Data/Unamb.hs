@@ -20,7 +20,7 @@
 
 module Data.Unamb
   (
-    bottom, unamb, assuming, asAgree, hang
+    unamb, assuming, asAgree
   , amb, race
   -- * Some useful special applications of 'amb'
   , parCommute, por, pand
@@ -28,34 +28,38 @@ module Data.Unamb
 
 import Prelude hiding (catch)
 import System.IO.Unsafe
+import Data.Function (on)
 
 import Control.Concurrent
 import Control.Exception
-  (evaluate, BlockedOnDeadMVar(..), catch, throw)
+  (evaluate, ErrorCall(..), BlockedOnDeadMVar(..), catch, throw)
 
 
 -- | Unambiguous choice operator.  Equivalent to the ambiguous choice
 -- operator, but with arguments restricted to be equal where not bottom,
 -- so that the choice doesn't matter.  See also 'amb'.
 unamb :: a -> a -> a
-a `unamb` b = unsafePerformIO (a `amb` b)
+unamb = (fmap.fmap) unsafePerformIO amb
+
+-- a `unamb` b = unsafePerformIO (a `amb` b)
+
 
 
 -- | Ambiguous choice operator.  Yield either value.  Evaluates in
 -- separate threads and picks whichever finishes first.  See also
 -- 'unamb' and 'race'.
 amb :: a -> a -> IO a
-a `amb` b = evaluate a `race` evaluate b
+amb = race `on` evaluate
+
+-- a `amb` b = evaluate a `race` evaluate b
 
 -- | Race two actions against each other in separate threads, and pick
--- whichever finishes first.  See also 'amb'.  Thanks to Spencer Janssen
--- for this simple version.
+-- whichever finishes first.  See also 'amb'.
 race :: IO a -> IO a -> IO a
-
 a `race` b = do v  <- newEmptyMVar
-                ta <- forkIO' (a >>= putMVar v)
-                tb <- forkIO' (b >>= putMVar v)
-                x  <- takeMVar v
+                ta <- forkPut a v
+                tb <- forkPut b v
+                x  <- takeMVar  v
                 killThread ta
                 killThread tb
                 return x
@@ -71,56 +75,24 @@ a `race` b = do v  <- newEmptyMVar
 -- and easier debugging.
 
 
--- Fork a thread to execute a given action.  Silence any raised exceptions.
-forkIO' :: IO () -> IO ThreadId
-forkIO' act = forkIO (act `catch` handler)
+-- Fork a thread to execute a given action and store the result in an
+-- MVar.  Catch 'undefined', bypassing the MVar write.  Two racing two
+-- aborted threads in this way can result in 'BlockedOnDeadMVar', so catch
+-- that exception also.
+forkPut :: IO a -> MVar a -> IO ThreadId
+forkPut act v = forkIO ((act >>= putMVar v) `catch` uhandler `catch` bhandler)
  where
-   handler :: BlockedOnDeadMVar -> IO ()
-   handler = const (return ())
-
--- I'd like @hang `unamb` hang@ to quickly terminate, throwing an
--- exception.  I'm surprised that it doesn't lead to 'BlockedOnDeadMVar'.
--- Why doesn't it??  Oh -- maybe it does, when compiled.
-
-
--- | A 'bottom' value, allowing no information out.  A left- and right-
--- identity for 'unamb'.  At the top level, evaluating 'bottom' results in
--- the message "Exception: thread blocked indefinitely".
-bottom :: a
-bottom = throw BlockedOnDeadMVar
-
--- {-# DEPRECATED hang "use bottom instead" #-}
-
--- | Never yield an answer.  Like 'undefined' or 'error "whatever"', but
--- don't raise an error, and don't consume computational resources.
-hang :: a
-hang = bottom
+   uhandler (ErrorCall "Prelude.undefined") = return ()
+   uhandler err                             = throw err
+   bhandler BlockedOnDeadMVar               = return ()
 
 -- | Yield a value if a condition is true.  Otherwise wait forever.
 assuming :: Bool -> a -> a
-assuming c a = if c then a else hang
+assuming c a = if c then a else undefined
 
 -- | The value of agreeing values (or hang)
 asAgree :: Eq a => a -> a -> a
 a `asAgree` b = assuming (a == b) a
-
-----
-
-{-
-
-import Data.Dynamic  -- move up
-
-data WaitForever = WaitForever
-
-INSTANCE_TYPEABLE0(WaitForever,waitForeverTc,"WaitForever")
-
-instance Show WaitForever where
-    showsPrec _ WaitForever = showString "waiting for, like, evar"
-instance Exception WaitForever
-
--}
-
-----
 
 
 {--------------------------------------------------------------------
@@ -136,7 +108,11 @@ parCommute op x y = (x `op` y) `unamb` (y `op` x)
 
 -- | Parallel or
 por :: Bool -> Bool -> Bool
-por = parCommute (||)
+
+a `por` b = (a || b) `unamb` (b || a)
+
+
+-- por = parCommute (||)
 
 -- | Parallel and
 pand :: Bool -> Bool -> Bool
@@ -146,11 +122,11 @@ pand = parCommute (&&)
 
 -- Examples:
 
-bottom `por` True
-True `por` bottom
+undefined `por` True
+True `por` undefined
 
-bottom `pand` False
-False `pand` bottom
+undefined `pand` False
+False `pand` undefined
 
 -}
 

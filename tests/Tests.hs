@@ -24,7 +24,7 @@ main = quickBatch batch
 
 batch :: TestBatch
 batch = ( "FRP.Reactive.Unamb"
-        , [ ("both identity", bothId                unambt hang)
+        , [ ("both identity", bothId                unambt undefined)
           , ("idempotence"  , idempotent2           unambt)
           , ("commutative"  , isCommutTimes 0.00001 unambt)
           , ("associative"  , isAssocTimes  0.00001 unambt)
