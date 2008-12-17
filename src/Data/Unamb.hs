@@ -117,10 +117,20 @@ pand = parCommute (&&)
 -- | Commutative operation with annihilator, in parallel.  For instance,
 -- '(*)'/0, '(&&)'/'False', '(||)'/'True', 'min'/'minBound', 'max'/'maxBound'.
 parAnnihilator :: Eq a => (a -> a -> a) -> a -> (a -> a -> a)
-parAnnihilator op ann = parCommute op'
- where
-   op' u v | u == ann  = u
-           | otherwise = op u v
+
+-- parAnnihilator op ann = parCommute op'
+--  where
+--    op' u v | u == ann  = u
+--            | otherwise = op u v
+
+-- The parCommute version can waste work while trying the two orderings.
+-- In the following version, one branch tries just one annihilator test.
+
+parAnnihilator op ann x y =
+  assuming (x == ann) ann `unamb`
+  (if y == ann then ann else x `op` y)
+
+
 
 -- | Parallel min with minBound short-circuit
 pmin :: (Ord a, Bounded a) => a -> a -> a
