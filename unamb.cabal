@@ -1,5 +1,5 @@
 Name:                unamb
-Version:             0.1.3
+Version:             0.1.4
 Cabal-Version:       >= 1.2
 Synopsis:            Unambiguous choice
 Category:            Concurrency, Data, Other

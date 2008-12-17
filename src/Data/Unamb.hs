@@ -23,7 +23,7 @@ module Data.Unamb
     unamb, assuming, asAgree
   , amb, race
   -- * Some useful special applications of 'amb'
-  , parCommute, por, pand
+  , parCommute, parAnnihilator, por, pand, pmin, pmax, pmult
   ) where
 
 import Prelude hiding (catch)
@@ -87,7 +87,8 @@ forkPut act v = forkIO ((act >>= putMVar v) `catch` uhandler `catch` bhandler)
 
 -- | Yield a value if a condition is true.  Otherwise wait forever.
 assuming :: Bool -> a -> a
-assuming c a = if c then a else undefined
+assuming True  a = a
+assuming False _ = undefined
 
 -- | The value of agreeing values (or hang)
 asAgree :: Eq a => a -> a -> a
@@ -107,15 +108,31 @@ parCommute op x y = (x `op` y) `unamb` (y `op` x)
 
 -- | Parallel or
 por :: Bool -> Bool -> Bool
-
-a `por` b = (a || b) `unamb` (b || a)
-
-
--- por = parCommute (||)
+por = parCommute (||)
 
 -- | Parallel and
 pand :: Bool -> Bool -> Bool
 pand = parCommute (&&)
+
+-- | Commutative operation with annihilator, in parallel.  For instance,
+-- '(*)'/0, '(&&)'/'False', '(||)'/'True', 'min'/'minBound', 'max'/'maxBound'.
+parAnnihilator :: Eq a => (a -> a -> a) -> a -> (a -> a -> a)
+parAnnihilator op ann = parCommute op'
+ where
+   op' u v | u == ann  = u
+           | otherwise = op u v
+
+-- | Parallel min with minBound short-circuit
+pmin :: (Ord a, Bounded a) => a -> a -> a
+pmin = parAnnihilator min minBound
+
+-- | Parallel max with minBound short-circuit
+pmax :: (Ord a, Bounded a) => a -> a -> a
+pmax = parAnnihilator max maxBound
+
+-- | Parallel multiplication with 0 short-circuit
+pmult :: Num a => a -> a -> a
+pmult = parAnnihilator (*) 0
 
 {-
 
@@ -127,5 +144,9 @@ True `por` undefined
 undefined `pand` False
 False `pand` undefined
 
--}
+0 `pmult` undefined
+undefined `pmult` 0
 
+LT `pmin` undefined
+
+-}
