@@ -33,8 +33,6 @@ import Data.Function (on)
 import Control.Monad.Instances () -- for function functor
 import Control.Concurrent
 import Control.Exception
-  ( evaluate, ErrorCall(..), BlockedOnDeadMVar(..)
-  , catch, throw, bracket)
 
 
 -- | Unambiguous choice operator.  Equivalent to the ambiguous choice
@@ -65,73 +63,17 @@ a `race` b = do v <- newEmptyMVar
 -- | Fork a thread, then do an action.  Finally, kill the forked thread,
 -- even in case of an exception, such as the parent thread being killed
 forking :: IO () -> IO a -> IO a
-forking a b = bracket (forkIO a) killThread (const b)
 
--- Thanks to Spencer Janssen for this implementation
+-- forking a b = bracket (forkIO a) killThread (const b)
 
+-- Thanks to Spencer Janssen for the forking implementation above, which
+-- is safer than my old version:
 
--- a `race` b = do v  <- newEmptyMVar
---                 ta <- forkPut a v
---                 tb <- forkPut b v
---                 x  <- takeMVar  v
---                 killThread ta
---                 killThread tb
---                 return x
+forking act k = do tid <- forkIO act
+                   k `finally` killThread tid
 
-
--- a `race` b = do v  <- newEmptyMVar
---                 ta <- forkPut a v
---                 tb <- forkPut b v
---                 takeMVar v `finally`
---                   (killThread ta >> killThread tb)
-
-
--- a `race` b = do v <- newEmptyMVar
---                 ta <- forkPut a v
---                 (do tb <- forkPut b v
---                     takeMVar v `finally` killThread tb)
---                  `finally` killThread ta
-
--- a `race` b = withNewMVar $ \ v ->
---                forking (putCatch a v) . forking (putCatch b v)
-
--- withNewMVar :: (MVar a -> IO a -> IO b) -> IO b
--- withNewMVar k = do v <- newEmptyMVar
---                    k v (takeMVar v)
-
--- -- Fork a thread to execute a given action and store the result in an
--- -- MVar.  Catch 'undefined', bypassing the MVar write.  Two racing two
--- -- aborted threads in this way can result in 'BlockedOnDeadMVar', so catch
--- -- that exception also.
--- forkPut :: IO a -> MVar a -> IO ThreadId
--- forkPut = (fmap.fmap) forkIO putCatch
-
--- forkPut act v = forkIO (putCatch act v)
-
--- a `race` b = do v <- newEmptyMVar
---                 forkingPut a v $
---                   forkingPut b v $
---                     takeMVar v
-
--- -- | Fork a thread, then do an action.  Finally, kill the forked thread,
--- -- even in case of an exception, such as the parent thread being killed
--- forking :: IO () -> IO b -> IO b
--- forking act k = do tid <- forkIO act
---                    k `finally` killThread tid
-
--- forking act k = forkIO act >>= finally k . killThread
-
--- Fork a thread to execute a given action and store the result in an
--- MVar.  Catch 'undefined', bypassing the MVar write.  Two racing two
--- aborted threads in this way can result in 'BlockedOnDeadMVar', so catch
--- that exception also.
-
--- -- Combination of 'forking' and 'putCatch'.
--- forkingPut :: IO a -> MVar a -> IO b -> IO b
--- forkingPut = (fmap.fmap) forking putCatch
-
--- forkingPut act v k = forking (putCatch act v) k
-
+-- Strangely, some of my unamb uses in reactive don't work with Spencer's
+-- version.
 
 
 -- Use a particular exception as our representation for waiting forever.
