@@ -23,7 +23,8 @@ module Data.Unamb
     unamb, assuming, asAgree
   , amb, race
   -- * Some useful special applications of 'amb'
-  , parCommute, parAnnihilator, por, pand, pmin, pmax, pmult
+  , parCommute, parIdentity, parAnnihilator
+  , por, pand, pmin, pmax, pmult
   ) where
 
 import Prelude hiding (catch)
@@ -32,7 +33,8 @@ import Data.Function (on)
 import Control.Monad.Instances () -- for function functor
 import Control.Concurrent
 import Control.Exception
-  (evaluate, ErrorCall(..), BlockedOnDeadMVar(..), catch, throw)
+  ( evaluate, ErrorCall(..), BlockedOnDeadMVar(..)
+  , catch, throw, bracket)
 
 
 -- | Unambiguous choice operator.  Equivalent to the ambiguous choice
@@ -42,7 +44,6 @@ unamb :: a -> a -> a
 unamb = (fmap.fmap) unsafePerformIO amb
 
 -- a `unamb` b = unsafePerformIO (a `amb` b)
-
 
 -- | Ambiguous choice operator.  Yield either value.  Evaluates in
 -- separate threads and picks whichever finishes first.  See also
@@ -55,13 +56,83 @@ amb = race `on` evaluate
 -- | Race two actions against each other in separate threads, and pick
 -- whichever finishes first.  See also 'amb'.
 race :: IO a -> IO a -> IO a
-a `race` b = do v  <- newEmptyMVar
-                ta <- forkPut a v
-                tb <- forkPut b v
-                x  <- takeMVar  v
-                killThread ta
-                killThread tb
-                return x
+
+a `race` b = do v <- newEmptyMVar
+                forking (putCatch a v) $
+                  forking (putCatch b v) $
+                    takeMVar v
+
+-- | Fork a thread, then do an action.  Finally, kill the forked thread,
+-- even in case of an exception, such as the parent thread being killed
+forking :: IO () -> IO a -> IO a
+forking a b = bracket (forkIO a) killThread (const b)
+
+-- Thanks to Spencer Janssen for this implementation
+
+
+-- a `race` b = do v  <- newEmptyMVar
+--                 ta <- forkPut a v
+--                 tb <- forkPut b v
+--                 x  <- takeMVar  v
+--                 killThread ta
+--                 killThread tb
+--                 return x
+
+
+-- a `race` b = do v  <- newEmptyMVar
+--                 ta <- forkPut a v
+--                 tb <- forkPut b v
+--                 takeMVar v `finally`
+--                   (killThread ta >> killThread tb)
+
+
+-- a `race` b = do v <- newEmptyMVar
+--                 ta <- forkPut a v
+--                 (do tb <- forkPut b v
+--                     takeMVar v `finally` killThread tb)
+--                  `finally` killThread ta
+
+-- a `race` b = withNewMVar $ \ v ->
+--                forking (putCatch a v) . forking (putCatch b v)
+
+-- withNewMVar :: (MVar a -> IO a -> IO b) -> IO b
+-- withNewMVar k = do v <- newEmptyMVar
+--                    k v (takeMVar v)
+
+-- -- Fork a thread to execute a given action and store the result in an
+-- -- MVar.  Catch 'undefined', bypassing the MVar write.  Two racing two
+-- -- aborted threads in this way can result in 'BlockedOnDeadMVar', so catch
+-- -- that exception also.
+-- forkPut :: IO a -> MVar a -> IO ThreadId
+-- forkPut = (fmap.fmap) forkIO putCatch
+
+-- forkPut act v = forkIO (putCatch act v)
+
+-- a `race` b = do v <- newEmptyMVar
+--                 forkingPut a v $
+--                   forkingPut b v $
+--                     takeMVar v
+
+-- -- | Fork a thread, then do an action.  Finally, kill the forked thread,
+-- -- even in case of an exception, such as the parent thread being killed
+-- forking :: IO () -> IO b -> IO b
+-- forking act k = do tid <- forkIO act
+--                    k `finally` killThread tid
+
+-- forking act k = forkIO act >>= finally k . killThread
+
+-- Fork a thread to execute a given action and store the result in an
+-- MVar.  Catch 'undefined', bypassing the MVar write.  Two racing two
+-- aborted threads in this way can result in 'BlockedOnDeadMVar', so catch
+-- that exception also.
+
+-- -- Combination of 'forking' and 'putCatch'.
+-- forkingPut :: IO a -> MVar a -> IO b -> IO b
+-- forkingPut = (fmap.fmap) forking putCatch
+
+-- forkingPut act v k = forking (putCatch act v) k
+
+
 
 -- Use a particular exception as our representation for waiting forever.
 -- A thread can bottom-out efficiently by throwing that exception.  If both
@@ -74,16 +145,28 @@ a `race` b = do v  <- newEmptyMVar
 -- and easier debugging.
 
 
--- Fork a thread to execute a given action and store the result in an
--- MVar.  Catch 'undefined', bypassing the MVar write.  Two racing two
--- aborted threads in this way can result in 'BlockedOnDeadMVar', so catch
--- that exception also.
-forkPut :: IO a -> MVar a -> IO ThreadId
-forkPut act v = forkIO ((act >>= putMVar v) `catch` uhandler `catch` bhandler)
+-- Execute a given action and store the result in an MVar.  Catch
+-- 'undefined', bypassing the MVar write.  Two racing two aborted threads
+-- in this way can result in 'BlockedOnDeadMVar', so catch that exception
+-- also.
+putCatch :: IO a -> MVar a -> IO ()
+putCatch act v = (act >>= putMVar v) `catch` uhandler `catch` bhandler
  where
    uhandler (ErrorCall "Prelude.undefined") = return ()
    uhandler err                             = throw err
    bhandler BlockedOnDeadMVar               = return ()
+
+
+-- -- Fork a thread to execute a given action and store the result in an
+-- -- MVar.  Catch 'undefined', bypassing the MVar write.  Two racing two
+-- -- aborted threads in this way can result in 'BlockedOnDeadMVar', so catch
+-- -- that exception also.
+-- forkPut :: IO a -> MVar a -> IO ThreadId
+-- forkPut act v = forkIO ((act >>= putMVar v) `catch` uhandler `catch` bhandler)
+--  where
+--    uhandler (ErrorCall "Prelude.undefined") = return ()
+--    uhandler err                             = throw err
+--    bhandler BlockedOnDeadMVar               = return ()
 
 -- | Yield a value if a condition is true.  Otherwise wait forever.
 assuming :: Bool -> a -> a
@@ -114,9 +197,6 @@ por = parCommute (||)
 pand :: Bool -> Bool -> Bool
 pand = parCommute (&&)
 
--- | Commutative operation with annihilator, in parallel.  For instance,
--- '(*)'/0, '(&&)'/'False', '(||)'/'True', 'min'/'minBound', 'max'/'maxBound'.
-parAnnihilator :: Eq a => (a -> a -> a) -> a -> (a -> a -> a)
 
 -- parAnnihilator op ann = parCommute op'
 --  where
@@ -126,10 +206,29 @@ parAnnihilator :: Eq a => (a -> a -> a) -> a -> (a -> a -> a)
 -- The parCommute version can waste work while trying the two orderings.
 -- In the following version, one branch tries just one annihilator test.
 
+-- parAnnihilator op ann x y = assuming (x == ann) ann `unamb`
+--                             (if y == ann then ann else x `op` y)
+
+--- TODO: This definition may be too strict, as it won't use @op@ unless
+--- it can prove @y /= ann@.  A lazier version:
+
+-- | Binary operation with annihilator element.  For instance, '(*)'/0,
+-- '(&&)'/'False', '(||)'/'True', 'min'/'minBound', 'max'/'maxBound'.
+-- Tests either argument as annihilator, in parallel.
+parAnnihilator :: Eq a => (a -> a -> a) -> a -> (a -> a -> a)
 parAnnihilator op ann x y =
   assuming (x == ann) ann `unamb`
-  (if y == ann then ann else x `op` y)
+  assuming (y == ann) ann `unamb`
+  (x `op` y)
 
+-- | Binary operation with left & right identity element.  For instance, '(*)'/1,
+-- '(&&)'/'True', '(||)'/'False', 'min'/'maxBound', 'max'/'minBound'.
+-- Tests either argument as identity, in parallel.
+parIdentity :: (Eq a) => (a -> a -> a) -> a -> a -> a -> a
+parIdentity op ident x y =
+  assuming (x == ident) y `unamb`
+  assuming (y == ident) x `unamb`
+  (x `op` y)
 
 
 -- | Parallel min with minBound short-circuit
@@ -158,5 +257,6 @@ False `pand` undefined
 undefined `pmult` 0
 
 LT `pmin` undefined
+undefined `pmin` LT
 
 -}
