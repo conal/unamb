@@ -55,6 +55,8 @@ amb = race `on` evaluate
 -- whichever finishes first.  See also 'amb'.
 race :: IO a -> IO a -> IO a
 
+-- Simple version:
+
 -- a `race` b = do v  <- newEmptyMVar
 --                 let f x = forkIO (putCatch x v)
 --                 ta <- f a
@@ -64,17 +66,14 @@ race :: IO a -> IO a -> IO a
 --                 killThread tb
 --                 return x
 
--- a `race` b = do v  <- newEmptyMVar
---                 let f x = forkIO (putCatch x v)
---                 ta <- f a
---                 tb <- f b
---                 let kill = killThread ta >> killThread tb
---                 block (do
---                   x <- (takeMVar v) `onException` kill
---                   kill
---                   return x)
+-- The simple version doesn't recursively kill descendent threads when
+-- killed, which leads to a lot of wasted work.
 
--- Based on suggestions from Sterling Clover and Bertram Felgenhauer
+-- Here is an improved version, based on suggestions from Sterling Clover
+-- and Bertram Felgenhauer.  It takes care to kill children when killed.
+-- Importantly, it also sets itself up to be retried if the unamb value is
+-- accessed again after its computation is aborted.
+
 race a b = block $ do
    v <- newEmptyMVar
    let f x = forkIO (unblock (putCatch x v))
@@ -85,66 +84,11 @@ race a b = block $ do
        \e -> do cleanup
                 case fromException e of
                     Just ThreadKilled ->
-                      -- kill self synchronously and then retry if
+                      -- kill self asynchronously and then retry if
                       -- evaluated again.
                       do myThreadId >>= killThread
                          unblock (race a b)
                     _ -> throwIO e
-
-{-
-forkIO' :: IO () -> IO ThreadId
-forkIO' io = forkIO (do myThreadId >>= print'
-                        io)
-
-putStrLn' :: String -> IO ()
-putStrLn' = locking . putStrLn
-
-print' :: Show a => a -> IO ()
-print' = putStrLn' . show
-
-theLock :: MVar ()
-theLock = unsafePerformIO (newMVar ())
-
-locking :: IO a -> IO ()
-locking io = do () <- takeMVar theLock
-                io
-                putMVar theLock ()
--}
-
--- forkPut :: IO a -> MVar a -> IO ThreadId
--- forkPut = (fmap.fmap) forkIO putCatch
-
-
--- a `race` b = do v <- newEmptyMVar
---                 ta <- forkPut a v
---                 (do tb <- forkPut b v
---                     takeMVar v `finally` killThread tb)
---                  `finally` killThread ta
-
-
-
--- a `race` b = do v <- newEmptyMVar
---                 forking (putCatch a v) $
---                   forking (putCatch b v) $
---                     takeMVar v
-
-{-
--- | Fork a thread, then do an action.  Finally, kill the forked thread,
--- even in case of an exception, such as the parent thread being killed
-forking :: IO () -> IO a -> IO a
-
--- forking a b = bracket (forkIO a) killThread (const b)
-
--- Thanks to Spencer Janssen for the forking implementation above, which
--- is safer than my old version:
-
-forking act k = do tid <- forkIO act
-                   k `finally` killThread tid
-
--- Strangely, some of my unamb uses in reactive don't work with Spencer's
--- version.
--}
-
 
 -- Use a particular exception as our representation for waiting forever.
 -- A thread can bottom-out efficiently by throwing that exception.  If both
@@ -170,23 +114,6 @@ putCatch act v = (act >>= putMVar v) `catches`
   -- , Handler $ \ NonTermination    -> return ()
   ]
 
-
--- putCatch act v = (act >>= putMVar v) `catch` uhandler `catch` bhandler
---  where
---    uhandler (ErrorCall _)     = return ()
---    bhandler BlockedOnDeadMVar = return ()
-
-
--- -- Fork a thread to execute a given action and store the result in an
--- -- MVar.  Catch 'undefined', bypassing the MVar write.  Two racing two
--- -- aborted threads in this way can result in 'BlockedOnDeadMVar', so catch
--- -- that exception also.
--- forkPut :: IO a -> MVar a -> IO ThreadId
--- forkPut act v = forkIO ((act >>= putMVar v) `catch` uhandler `catch` bhandler)
---  where
---    uhandler (ErrorCall "Prelude.undefined") = return ()
---    uhandler err                             = throw err
---    bhandler BlockedOnDeadMVar               = return ()
 
 -- | Yield a value if a condition is true.  Otherwise wait forever.
 assuming :: Bool -> a -> a
