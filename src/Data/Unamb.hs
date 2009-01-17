@@ -55,11 +55,80 @@ amb = race `on` evaluate
 -- whichever finishes first.  See also 'amb'.
 race :: IO a -> IO a -> IO a
 
-a `race` b = do v <- newEmptyMVar
-                forking (putCatch a v) $
-                  forking (putCatch b v) $
-                    takeMVar v
+-- a `race` b = do v  <- newEmptyMVar
+--                 let f x = forkIO (putCatch x v)
+--                 ta <- f a
+--                 tb <- f b
+--                 x  <- takeMVar  v
+--                 killThread ta
+--                 killThread tb
+--                 return x
 
+-- a `race` b = do v  <- newEmptyMVar
+--                 let f x = forkIO (putCatch x v)
+--                 ta <- f a
+--                 tb <- f b
+--                 let kill = killThread ta >> killThread tb
+--                 block (do
+--                   x <- (takeMVar v) `onException` kill
+--                   kill
+--                   return x)
+
+-- Based on suggestions from Sterling Clover and Bertram Felgenhauer
+race a b = block $ do
+   v <- newEmptyMVar
+   let f x = forkIO (unblock (putCatch x v))
+   ta <- f a
+   tb <- f b
+   let cleanup = killThread ta >> killThread tb
+   (do r <- takeMVar v; cleanup; return r) `catch`
+       \e -> do cleanup
+                case fromException e of
+                    Just ThreadKilled ->
+                      -- kill self synchronously and then retry if
+                      -- evaluated again.
+                      do myThreadId >>= killThread
+                         unblock (race a b)
+                    _ -> throwIO e
+
+{-
+forkIO' :: IO () -> IO ThreadId
+forkIO' io = forkIO (do myThreadId >>= print'
+                        io)
+
+putStrLn' :: String -> IO ()
+putStrLn' = locking . putStrLn
+
+print' :: Show a => a -> IO ()
+print' = putStrLn' . show
+
+theLock :: MVar ()
+theLock = unsafePerformIO (newMVar ())
+
+locking :: IO a -> IO ()
+locking io = do () <- takeMVar theLock
+                io
+                putMVar theLock ()
+-}
+
+-- forkPut :: IO a -> MVar a -> IO ThreadId
+-- forkPut = (fmap.fmap) forkIO putCatch
+
+
+-- a `race` b = do v <- newEmptyMVar
+--                 ta <- forkPut a v
+--                 (do tb <- forkPut b v
+--                     takeMVar v `finally` killThread tb)
+--                  `finally` killThread ta
+
+
+
+-- a `race` b = do v <- newEmptyMVar
+--                 forking (putCatch a v) $
+--                   forking (putCatch b v) $
+--                     takeMVar v
+
+{-
 -- | Fork a thread, then do an action.  Finally, kill the forked thread,
 -- even in case of an exception, such as the parent thread being killed
 forking :: IO () -> IO a -> IO a
@@ -74,6 +143,7 @@ forking act k = do tid <- forkIO act
 
 -- Strangely, some of my unamb uses in reactive don't work with Spencer's
 -- version.
+-}
 
 
 -- Use a particular exception as our representation for waiting forever.
@@ -88,15 +158,23 @@ forking act k = do tid <- forkIO act
 
 
 -- Execute a given action and store the result in an MVar.  Catch
--- 'undefined', bypassing the MVar write.  Two racing two aborted threads
+-- 'error' calls, bypassing the MVar write.  Two racing two aborted threads
 -- in this way can result in 'BlockedOnDeadMVar', so catch that exception
 -- also.
 putCatch :: IO a -> MVar a -> IO ()
-putCatch act v = (act >>= putMVar v) `catch` uhandler `catch` bhandler
- where
-   uhandler (ErrorCall "Prelude.undefined") = return ()
-   uhandler err                             = throw err
-   bhandler BlockedOnDeadMVar               = return ()
+putCatch act v = (act >>= putMVar v) `catches` 
+  [ Handler $ \ (ErrorCall _)     -> return ()
+  , Handler $ \ BlockedOnDeadMVar -> return ()
+  -- This next handler hides bogus black holes, which show up as
+  -- "<<loop>>" messages.  I'd rather eliminate the problem than hide it.
+  -- , Handler $ \ NonTermination    -> return ()
+  ]
+
+
+-- putCatch act v = (act >>= putMVar v) `catch` uhandler `catch` bhandler
+--  where
+--    uhandler (ErrorCall _)     = return ()
+--    bhandler BlockedOnDeadMVar = return ()
 
 
 -- -- Fork a thread to execute a given action and store the result in an
@@ -200,5 +278,11 @@ undefined `pmult` 0
 
 LT `pmin` undefined
 undefined `pmin` LT
+
+test :: Int -> Int
+test x = f (f x) 
+    where f v = (x `unamb` v) `seq` v
+
+main = do mapM_ (print . test) [0..]
 
 -}
