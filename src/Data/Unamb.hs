@@ -115,7 +115,7 @@ putCatch act v = (act >>= putMVar v) `catches`
   ]
 
 
--- | Yield a value if a condition is true.  Otherwise wait forever.
+-- | Yield a value if a condition is true.  Otherwise undefined.
 assuming :: Bool -> a -> a
 assuming True  a = a
 assuming False _ = undefined

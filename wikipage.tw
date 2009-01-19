@@ -3,16 +3,26 @@
 
 == Abstract ==
 
-'''unamb''' is a package containing the ''unambiguous choice'' operator <hask>unamb</hask>, which wraps thread racing up in a purely functional, semantically simple wrapper.  Given any two arguments <hask>u</hask> and <hask>v</hask> that agree unless bottom, the value of <hask>unamb u v</hask> is the more terminating of <hask>u</hask> and <hask>v</hask>.  Operationally, the value of <hask>unamb u v</hask> becomes available when the earlier of <hask>u</hask> and <hask>v</hask> does.  The agreement precondition ensures unamb's referential transparency.  For more info about <hask>unamb</hask> and its use, see the paper ''[http://conal.net/papers/simply-reactive/ Simply Efficient Functional Reactivity]'', sections 10 and 11.
+'''unamb''' is a package containing the ''unambiguous choice'' operator <hask>unamb</hask>, which wraps thread racing up in a purely functional, semantically simple wrapper.
+Given any two arguments <hask>u</hask> and <hask>v</hask> that agree unless bottom, the value of <hask>unamb u v</hask> is the more terminating of <hask>u</hask> and <hask>v</hask>.
+Operationally, the value of <hask>unamb u v</hask> becomes available when the earlier of <hask>u</hask> and <hask>v</hask> does.
+The agreement precondition ensures unamb's referential transparency.
+For more info about <hask>unamb</hask> and its use, see the paper ''[http://conal.net/papers/simply-reactive/ Simply Efficient Functional Reactivity]'', sections 10 and 11.
 
 <hask>unamb</hask> was originally a part of [[Reactive]].  I moved it to its own package in order to encourage experimentation.
 
 Besides this wiki page, here are more ways to find out about unamb:
 * Visit the [http://hackage.haskell.org/cgi-bin/hackage-scripts/package/unamb Hackage page] for library documentation and to download & install.
+* Read [http://conal.net/blog/tag/unamb/ related blog posts].
 * Or install with <tt>cabal install unamb</tt>.
 * Get the code repository: <tt>darcs get http://code.haskell.org/unamb</tt>.
 <!-- * See the [[unamb/Versions| version history]]. -->
 
-Please leave comments at the [[Talk:unamb|Talk page]].
-
+<!-- Please leave comments at the [[Talk:unamb|Talk page]]. -->
 As of version 0.1.1, unamb requires ghc 6.10 or better.
+
+As of version 0.1.6, unamb correctly handles recursive termination of sub-efforts and automatic restarting, but only with the GHC RTS fixes that first appeared (stably, by my testing) in GHC HEAD version 6.11.20090115.
+The problems and solution can be found in a few places:
+* Email thread: [http://n2.nabble.com/problem-with-unamb----doesn%27t-kill-enough-threads-tt1674917.html problem with unamb -- doesn't kill enough threads]
+* Blog post: [http://conal.net/blog/posts/smarter-termination-for-thread-racing/ Smarter termination for thread racing]
+* Email thread: [http://n2.nabble.com/Re%3A-black-hole-detection-and-concurrency-td2016290.htm Black hole detection and concurrency]
