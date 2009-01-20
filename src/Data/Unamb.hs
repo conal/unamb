@@ -182,7 +182,7 @@ parIdentity op ident x y =
 pmin :: (Ord a, Bounded a) => a -> a -> a
 pmin = parAnnihilator min minBound
 
--- | Parallel max with minBound short-circuit
+-- | Parallel max with maxBound short-circuit
 pmax :: (Ord a, Bounded a) => a -> a -> a
 pmax = parAnnihilator max maxBound
 
