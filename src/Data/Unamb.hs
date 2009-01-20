@@ -23,7 +23,7 @@ module Data.Unamb
     -- * Purely functional unambiguous choice
     unamb
     -- * Some useful special applications of 'unamb'
-  , assuming, asAgree
+  , unambs, assuming, asAgree
   , parCommute, parIdentity, parAnnihilator
   , por, pand, pmin, pmax, pmult
     -- * Some related imperative tools
@@ -45,6 +45,10 @@ unamb :: a -> a -> a
 unamb = (fmap.fmap) unsafePerformIO amb
 
 -- a `unamb` b = unsafePerformIO (a `amb` b)
+
+-- | n-ary 'unamb'
+unambs :: [a] -> a
+unambs = foldr unamb undefined
 
 -- | Ambiguous choice operator.  Yield either value.  Evaluates in
 -- separate threads and picks whichever finishes first.  See also
@@ -110,8 +114,9 @@ race a b = block $ do
 -- also.
 putCatch :: IO a -> MVar a -> IO ()
 putCatch act v = (act >>= putMVar v) `catches` 
-  [ Handler $ \ (ErrorCall _)     -> return ()
-  , Handler $ \ BlockedOnDeadMVar -> return ()
+  [ Handler $ \ ErrorCall         {} -> return ()
+  , Handler $ \ BlockedOnDeadMVar {} -> return ()
+  , Handler $ \ PatternMatchFail  {} -> return ()
   -- This next handler hides bogus black holes, which show up as
   -- "<<loop>>" messages.  I'd rather eliminate the problem than hide it.
   -- , Handler $ \ NonTermination    -> return ()
