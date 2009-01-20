@@ -13,7 +13,7 @@
 -- 
 -- For non-flat types (where values may be partially defined, rather than
 -- necessarily bottom or fully defined) and information merging, see the
--- lub package, <http://haskell.org/haskellwiki/lub>.
+-- lub package, <http://haskell.org/haskellwiki/Lub>.
 ----------------------------------------------------------------------
 
 -- #include "Typeable.h"
@@ -159,8 +159,8 @@ pand = parCommute (&&)
 --- TODO: This definition may be too strict, as it won't use @op@ unless
 --- it can prove @y /= ann@.  A lazier version:
 
--- | Binary operation with annihilator element.  For instance, '(*)'/0,
--- '(&&)'/'False', '(||)'/'True', 'min'/'minBound', 'max'/'maxBound'.
+-- | Binary operation with annihilator element.  For instance, (*) & 0,
+-- (&&) & 'False', (||) & 'True', 'min' & 'minBound', 'max' & 'maxBound'.
 -- Tests either argument as annihilator, in parallel.
 parAnnihilator :: Eq a => (a -> a -> a) -> a -> (a -> a -> a)
 parAnnihilator op ann x y =
@@ -168,8 +168,8 @@ parAnnihilator op ann x y =
   assuming (y == ann) ann `unamb`
   (x `op` y)
 
--- | Binary operation with left & right identity element.  For instance, '(*)'/1,
--- '(&&)'/'True', '(||)'/'False', 'min'/'maxBound', 'max'/'minBound'.
+-- | Binary operation with left & right identity element.  For instance, (*) & 1,
+-- (&&) & 'True', (||) & 'False', 'min' & 'maxBound', 'max' & 'minBound'.
 -- Tests either argument as identity, in parallel.
 parIdentity :: (Eq a) => (a -> a -> a) -> a -> a -> a -> a
 parIdentity op ident x y =
