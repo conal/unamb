@@ -13,7 +13,7 @@
 -- 
 -- For non-flat types (where values may be partially defined, rather than
 -- necessarily bottom or fully defined) and information merging, see the
--- '''lub''' package.
+-- lub package, <http://haskell.org/haskellwiki/lub>.
 ----------------------------------------------------------------------
 
 -- #include "Typeable.h"
@@ -120,7 +120,7 @@ assuming :: Bool -> a -> a
 assuming True  a = a
 assuming False _ = undefined
 
--- | The value of agreeing values (or hang)
+-- | The value of agreeing values (or undefined/bottom)
 asAgree :: Eq a => a -> a -> a
 a `asAgree` b = assuming (a == b) a
 

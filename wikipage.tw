@@ -19,6 +19,8 @@ Besides this wiki page, here are more ways to find out about unamb:
 <!-- * See the [[unamb/Versions| version history]]. -->
 
 <!-- Please leave comments at the [[Talk:unamb|Talk page]]. -->
+See also the [[lub]] package, which extends unamb's usefulness with non-flat types.
+
 As of version 0.1.1, unamb requires ghc 6.10 or better.
 
 As of version 0.1.6, unamb correctly handles recursive termination of sub-efforts and automatic restarting, but only with the GHC RTS fixes that first appeared (stably, by my testing) in GHC HEAD version 6.11.20090115.
