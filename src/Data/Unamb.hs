@@ -20,11 +20,14 @@
 
 module Data.Unamb
   (
-    unamb, assuming, asAgree
-  , amb, race
-  -- * Some useful special applications of 'amb'
+    -- * Purely functional unambiguous choice
+    unamb
+    -- * Some useful special applications of 'unamb'
+  , assuming, asAgree
   , parCommute, parIdentity, parAnnihilator
   , por, pand, pmin, pmax, pmult
+    -- * Some related imperative tools
+  , amb, race
   ) where
 
 import Prelude hiding (catch)
