@@ -1,5 +1,5 @@
 Name:                unamb
-Version:             0.1.9
+Version:             0.2
 Cabal-Version:       >= 1.2
 Synopsis:            Unambiguous choice
 Category:            Concurrency, Data, Other
@@ -13,7 +13,9 @@ Description:
   .
   &#169; 2008 by Conal Elliott; BSD3 license.
   .
-  Contributions from: Luke Palmer, Spencer Janssen, Sterling Clover, Bertram Felgenhauer, Peter Verswyvelen.
+  Contributions from: Luke Palmer, Spencer Janssen, Sterling Clover,
+  Bertram Felgenhauer, Peter Verswyvelen, and Svein Ove Aas.
+  Please let me know if I've forgotten to list you.
 Author:              Conal Elliott 
 Maintainer:          conal@conal.net
 Homepage:            http://haskell.org/haskellwiki/unamb
@@ -53,3 +55,6 @@ Executable test-unamb
     build-depends:      QuickCheck, checkers
   else
     buildable:          False
+  ghc-options:         -threaded
+
+-- Tests run /much/ faster with -threaded .

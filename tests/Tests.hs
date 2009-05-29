@@ -31,7 +31,9 @@ batch = ( "FRP.Reactive.Unamb"
           , ("idempotence"  , idempotent2           unambt)
           , ("commutative"  , isCommutTimes 0.00001 unambt)
           , ("associative"  , isAssocTimes  0.00001 unambt)
-            -- These still get tested 500 times. Pointless, but the best I can do on short order. - Svein
+          -- These still get tested 500 times. Pointless, but the best I can do on short order. - Svein
+          -- TODO: Replace the A/b and B/a tests with something simpler.  At the
+          -- very least, add a comment here.
           , ("recursive A"  , eq b 30)
           , ("recursive B"  , eq a 42)
           ]

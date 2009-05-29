@@ -160,6 +160,7 @@ putCatch act v = onException (act >>= putMVar v . Just) (putMVar v Nothing) `cat
                  , Handler $ \ PatternMatchFail  {} -> return ()
                  -- This next handler hides bogus black holes, which show up as
                  -- "<<loop>>" messages.  I'd rather eliminate the problem than hide it.
+                 -- TODO: Remove and stress-test (e.g., reactive-fieldtrip)
                  , Handler $ \ NonTermination    -> print "Unamb.hs: Bogus black hole?" >> throwIO NonTermination
                  ]
 
