@@ -18,6 +18,9 @@ import Test.QuickCheck.Later
 
 import Data.Unamb
 
+import System.IO.Unsafe
+import Control.Concurrent
+
 main :: IO ()
 main = quickBatch batch
 
@@ -28,12 +31,19 @@ batch = ( "FRP.Reactive.Unamb"
           , ("idempotence"  , idempotent2           unambt)
           , ("commutative"  , isCommutTimes 0.00001 unambt)
           , ("associative"  , isAssocTimes  0.00001 unambt)
+            -- These still get tested 500 times. Pointless, but the best I can do on short order. - Svein
+          , ("recursive A"  , eq b 30)
+          , ("recursive B"  , eq a 42)
           ]
         )
  where
    -- monomorphic test version
    unambt :: NumT -> NumT -> NumT
    unambt = unamb
+   -- For the recursive tests
+   x = unsafePerformIO (threadDelay 100000 >> return (42::Int))
+   a = unamb x undefined
+   b = unamb 30 a
 
 -- On Windows the commutative and associative test take a long time
 -- because of the intentional delays.  I don't understand the magnitude of

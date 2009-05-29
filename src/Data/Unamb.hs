@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, RecursiveDo, CPP #-}
+{-# LANGUAGE ScopedTypeVariables, RecursiveDo, CPP, DeriveDataTypeable #-}
 {-# OPTIONS_GHC -Wall #-}
 ----------------------------------------------------------------------
 -- |
@@ -28,6 +28,8 @@ module Data.Unamb
   , por, pand, pmin, pmax, pmult
     -- * Some related imperative tools
   , amb, race
+    -- * Exception thrown if neither value evaluates
+  , BothBottom
   ) where
 
 import Prelude hiding (catch)
@@ -36,27 +38,53 @@ import Data.Function (on)
 import Control.Monad.Instances () -- for function functor
 import Control.Concurrent
 import Control.Exception
+import Data.Typeable
 
+--import Data.IsEvaluated
+
+-- Use a particular exception as our representation for waiting forever.
+data BothBottom = BothBottom deriving(Show,Typeable)
+
+instance Exception BothBottom
 
 -- | Unambiguous choice operator.  Equivalent to the ambiguous choice
 -- operator, but with arguments restricted to be equal where not bottom,
 -- so that the choice doesn't matter.  See also 'amb'.
+--
+-- If anything kills unamb while it is evaluating (like nested unambs), it can
+-- be retried later but, unlike most functions, work may be lost.
 unamb :: a -> a -> a
-unamb = (fmap.fmap) unsafePerformIO amb
+unamb a b = unsafePerformIO $ do 
+              -- First, check whether one of the values already is evaluated
+              -- #ifdef this for GHC
+              a' <- return False --isEvaluated a
+              b' <- return False --isEvaluated b
+              case (a',b') of
+                (True,_) -> return a
+                (_,True) -> return b
+                _        -> do retry (amb a b)
+    where retry act = act `catch`
+                        (\(SomeException e) -> do
+                             -- The throwTo is apparently needed, to ensure the
+                             -- exception is thrown to *this* thread.
+                             -- unsafePerformIO would otherwise restart the
+                             -- throwIO call when re-invoked.
+--                              print "abort"
+                             myid <- myThreadId
+                             unblock $ throwTo myid e >> retry act)
 
--- a `unamb` b = unsafePerformIO (a `amb` b)
 
 -- | n-ary 'unamb'
 unambs :: [a] -> a
-unambs = foldr unamb undefined
+unambs []  = undefined
+unambs [x] = x
+unambs xs  = foldr unamb undefined xs
 
 -- | Ambiguous choice operator.  Yield either value.  Evaluates in
 -- separate threads and picks whichever finishes first.  See also
 -- 'unamb' and 'race'.
 amb :: a -> a -> IO a
 amb = race `on` evaluate
-
--- a `amb` b = evaluate a `race` evaluate b
 
 -- | Race two actions against each other in separate threads, and pick
 -- whichever finishes first.  See also 'amb'.
@@ -81,46 +109,59 @@ race :: IO a -> IO a -> IO a
 -- Importantly, it also sets itself up to be retried if the unamb value is
 -- accessed again after its computation is aborted.
 
+-- race a b = block $ do
+--    v <- newEmptyMVar
+--    let f x = forkIO (unblock (putCatch x v))
+--    ta <- f a
+--    tb <- f b
+--    let cleanup = killThread ta >> killThread tb
+--    (do r <- takeMVar v; cleanup; return r) `catch`
+--        \e -> do cleanup
+--                 case fromException e of
+--                     Just ThreadKilled ->
+--                       -- kill self asynchronously and then retry if
+--                       -- evaluated again.
+--                       do throwIO e
+--                          myThreadId >>= killThread
+--                          unblock (race a b)
+--                     _ -> throwIO e
+
+
+-- Finally, an improved version written by Svein Ove Aas
+
+-- This version kills descendant threads when killed, but does not restart
+-- any work if it's called by unamb. That code is left in unamb.
+
 race a b = block $ do
-   v <- newEmptyMVar
-   let f x = forkIO (unblock (putCatch x v))
-   ta <- f a
-   tb <- f b
-   let cleanup = killThread ta >> killThread tb
-   (do r <- takeMVar v; cleanup; return r) `catch`
-       \e -> do cleanup
-                case fromException e of
-                    Just ThreadKilled ->
-                      -- kill self asynchronously and then retry if
-                      -- evaluated again.
-                      do myThreadId >>= killThread
-                         unblock (race a b)
-                    _ -> throwIO e
+  v <- newEmptyMVar
+  let f x = forkIO $ putCatch x v
+  ta <- f a
+  tb <- f b
+  let cleanup = killThread ta >> killThread tb
+      loop 0 = throwIO BothBottom
+      loop t = do x <- takeMVar v
+                  case x of Nothing -> loop (t-1)
+                            Just x' -> return x'
+  unblock (loop (2 :: Int) `finally` cleanup)
+  
 
--- Use a particular exception as our representation for waiting forever.
--- A thread can bottom-out efficiently by throwing that exception.  If both
--- threads bail out, then the 'takeMVar' would block.  In that case, the
--- run-time system would notice and raise 'BlockedOnDeadMVar'.  I'd then
--- want to convert that exception into the one that wait-forever
--- exception.  As an expedient hack, I use 'BlockedOnDeadMVar' as the
--- wait-forever exception, so that no conversion is needed.  Perhaps
--- revisit this choice, and define our own exception class, for clarity
--- and easier debugging.
+-- A thread can bottom-out efficiently by throwing that exception.
+-- Before a thread bails out for any reason, it informs race of its bailing out.
 
-
--- Execute a given action and store the result in an MVar.  Catch
--- 'error' calls, bypassing the MVar write.  Two racing two aborted threads
--- in this way can result in 'BlockedOnDeadMVar', so catch that exception
--- also.
-putCatch :: IO a -> MVar a -> IO ()
-putCatch act v = (act >>= putMVar v) `catches` 
-  [ Handler $ \ ErrorCall         {} -> return ()
-  , Handler $ \ BlockedOnDeadMVar {} -> return ()
-  , Handler $ \ PatternMatchFail  {} -> return ()
-  -- This next handler hides bogus black holes, which show up as
-  -- "<<loop>>" messages.  I'd rather eliminate the problem than hide it.
-  -- , Handler $ \ NonTermination    -> return ()
-  ]
+-- Execute a given action and store the result in an MVar. Catch
+-- all errors, bypassing the MVar write and registering a dead thread in that
+-- mvar before passing them on.
+-- We suppress error-printing for.. what, exactly? When should we *not* do it?
+-- Using old code for now.
+putCatch :: IO a -> MVar (Maybe a) -> IO ()
+putCatch act v = onException (act >>= putMVar v . Just) (putMVar v Nothing) `catches`
+                 [ Handler $ \ ErrorCall         {} -> return ()
+                 , Handler $ \ BothBottom        {} -> return ()
+                 , Handler $ \ PatternMatchFail  {} -> return ()
+                 -- This next handler hides bogus black holes, which show up as
+                 -- "<<loop>>" messages.  I'd rather eliminate the problem than hide it.
+                 , Handler $ \ NonTermination    -> print "Unamb.hs: Bogus black hole?" >> throwIO NonTermination
+                 ]
 
 
 -- | Yield a value if a condition is true.  Otherwise undefined.
