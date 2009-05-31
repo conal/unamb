@@ -14,6 +14,8 @@
 -- For non-flat types (where values may be partially defined, rather than
 -- necessarily bottom or fully defined) and information merging, see the
 -- lub package, <http://haskell.org/haskellwiki/Lub>.
+-- 
+-- See unamb.cabal for the list of contributors.
 ----------------------------------------------------------------------
 
 -- #include "Typeable.h"
@@ -34,13 +36,12 @@ module Data.Unamb
 
 import Prelude hiding (catch)
 import System.IO.Unsafe
-import Data.Function (on)
 import Control.Monad.Instances () -- for function functor
 import Control.Concurrent
 import Control.Exception
 import Data.Typeable
 
---import Data.IsEvaluated
+-- import Data.IsEvaluated
 
 -- Use a particular exception as our representation for waiting forever.
 data BothBottom = BothBottom deriving(Show,Typeable)
@@ -54,59 +55,66 @@ instance Exception BothBottom
 -- If anything kills unamb while it is evaluating (like nested unambs), it can
 -- be retried later but, unlike most functions, work may be lost.
 unamb :: a -> a -> a
-unamb a b = unsafePerformIO (retry (amb a b))
-    where retry act = act `catch`
-                      (\(SomeException e) -> do
-                          -- Exception handling in unsafePerformIO does not happen like you're
-                          -- used to in normal code. Specifically:
-                          --
-                          -- * If a thread running unsafePerformIO code catches an asynchronous
-                          --   exception, the stack is unwound until the first matching exception
-                          --   handler as per normal, but if that unwinds it past the invocation
-                          --   of the unsafePerformIO thunk, the entire state of the code running
-                          --   in it is saved for later use. If the thunk is later re-entered, it
-                          --   "unpauses" the code and it continues from where it stopped.
-                          -- * If the code throws a normal exception, eg. throw/throwIO/pattern
-                          --   match failure, etc. past the invocation thunk, the thunk is altered
-                          --   to immediately throw that same exception if it is ever re-entered.
-                          --
-                          -- These are both normally good things for efficiency reasons. It
-                          -- presents us with a pickle when implementing unamb, however:
-                          --
-                          -- * unamb is implemented by calling race, which creates threads that
-                          --   it kills once it completes, for any reason, including exceptions.
-                          -- * As invocations of unamb are often recursive, this means that
-                          --   invocations of unamb are often killed by asynchronous exceptions.
-                          -- * The normal "unpausing" behavior of unsafePerformIO would have them
-                          --   keep trying to read a dead MVar, whose writers are now-dead threads.
-                          --
-                          -- To fix this, we want to restart the action entirely when we catch an
-                          -- exception.
-                          --
-                          -- We do this by adding this exception handler, which instead of returning
-                          -- normally retries the action at the end. We do of course want to throw
-                          -- the exception on; however, we can't use throw/throwIO (as that would
-                          -- make the thunk record itself as bottom), therefore we use throwTo
-                          -- instead.
-                          --
-                          -- Ensuring that the code doesn't execute the retry before the exception
-                          -- is propagated, throwTo doesn't return until the exception has been
-                          -- handled.
-                          -- 
-                          -- Incidentally, all exception handlers run inside an implicit block, and
-                          -- blocking operations contain an implicit unblock. This ensures that any
-                          -- further pending exceptions won't mess this scheme up, as they can't be
-                          -- delivered until after throwTo has been called.
-                          -- 
-                          myThreadId >>= flip throwTo e
-                          unblock $ retry act)
+unamb = (fmap.fmap) restartingUnsafePerformIO amb
+
+-- unamb a b = restartingUnsafePerformIO (amb a b)
+
+
+restartingUnsafePerformIO :: IO a -> a
+restartingUnsafePerformIO = unsafePerformIO . retry
+
+-- Exception handling in unsafePerformIO does not happen like you're
+-- used to in normal code. Specifically:
+--
+-- * If a thread running unsafePerformIO code catches an asynchronous
+--   exception, the stack is unwound until the first matching exception
+--   handler as per normal, but if that unwinds it past the invocation
+--   of the unsafePerformIO thunk, the entire state of the code running
+--   in it is saved for later use. If the thunk is later re-entered, it
+--   "unpauses" the code and it continues from where it stopped.
+-- * If the code throws a normal exception, eg. throw/throwIO/pattern
+--   match failure, etc. past the invocation thunk, the thunk is altered
+--   to immediately throw that same exception if it is ever re-entered.
+--
+-- These are both normally good things for efficiency reasons. It
+-- presents us with a pickle when implementing unamb, however:
+--
+-- * unamb is implemented by calling race, which creates threads that
+--   it kills once it completes, for any reason, including exceptions.
+-- * As invocations of unamb are often recursive, this means that
+--   invocations of unamb are often killed by asynchronous exceptions.
+-- * The normal "unpausing" behavior of unsafePerformIO would have them
+--   keep trying to read a dead MVar, whose writers are now-dead threads.
+--
+-- To fix this, we want to restart the action entirely when we catch an
+-- exception.
+--
+-- We do this by adding this exception handler, which instead of returning
+-- normally retries the action at the end. We do of course want to throw
+-- the exception on; however, we can't use throw/throwIO (as that would
+-- make the thunk record itself as bottom), therefore we use throwTo
+-- instead.
+--
+-- Ensuring that the code doesn't execute the retry before the exception
+-- is propagated, throwTo doesn't return until the exception has been
+-- handled.
+-- 
+-- Incidentally, all exception handlers run inside an implicit block, and
+-- blocking operations contain an implicit unblock. This ensures that any
+-- further pending exceptions won't mess this scheme up, as they can't be
+-- delivered until after throwTo has been called.
+-- 
+retry :: IO a -> IO a
+retry act =
+  act `catch` \ (SomeException e) -> do
+    myThreadId >>= flip throwTo e
+    unblock $ retry act
 
 
 -- | n-ary 'unamb'
 unambs :: [a] -> a
 unambs []  = undefined
-unambs [x] = x
-unambs xs  = foldr unamb undefined xs
+unambs xs  = foldr1 unamb xs
 
 -- | Ambiguous choice operator.  Yield either value.  Evaluates in
 -- separate threads and picks whichever finishes first.  See also
