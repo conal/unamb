@@ -54,17 +54,8 @@ instance Exception BothBottom
 -- If anything kills unamb while it is evaluating (like nested unambs), it can
 -- be retried later but, unlike most functions, work may be lost.
 unamb :: a -> a -> a
-unamb a b = unsafePerformIO (retry unambIO)
-    where unambIO = do
-            -- First, check whether one of the values already is evaluated
-            -- #ifdef this for GHC
-            a' <- return False --isEvaluated a
-            b' <- return False --isEvaluated b
-            case (a',b') of
-              (True,_) -> return a
-              (_,True) -> return b
-              _        -> amb a b
-          retry act = act `catch`
+unamb a b = unsafePerformIO (retry (amb a b))
+    where retry act = act `catch`
                       (\(SomeException e) -> do
                           -- Exception handling in unsafePerformIO does not happen like you're
                           -- used to in normal code. Specifically:
@@ -121,7 +112,15 @@ unambs xs  = foldr unamb undefined xs
 -- separate threads and picks whichever finishes first.  See also
 -- 'unamb' and 'race'.
 amb :: a -> a -> IO a
-amb = race `on` evaluate
+amb a b = do 
+  -- First, check whether one of the values already is evaluated
+  -- #ifdef this out for non-GHC code.
+  a' <- return False --isEvaluated a
+  b' <- return False --isEvaluated b
+  case (a',b') of
+    (True,_) -> return a
+    (_,True) -> return b
+    _        -> race (evaluate a) (evaluate b)
 
 -- | Race two actions against each other in separate threads, and pick
 -- whichever finishes first.  See also 'amb'.
