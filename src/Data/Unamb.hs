@@ -165,8 +165,7 @@ race :: IO a -> IO a -> IO a
 --                     Just ThreadKilled ->
 --                       -- kill self asynchronously and then retry if
 --                       -- evaluated again.
---                       do throwIO e
---                          myThreadId >>= killThread
+--                       do myThreadId >>= killThread
 --                          unblock (race a b)
 --                     _ -> throwIO e
 
