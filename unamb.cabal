@@ -52,7 +52,7 @@ Executable test-unamb
   -- Only enable the build-depends here if configured with "-ftest". This
   -- keeps users from having to install QuickCheck 2 in order to use EMGM.
   if flag(test)
-    build-depends:      QuickCheck, checkers
+    build-depends:      QuickCheck >= 2, checkers
   else
     buildable:          False
   ghc-options:         -threaded

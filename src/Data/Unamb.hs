@@ -43,10 +43,15 @@ import Data.Typeable
 
 -- import Data.IsEvaluated
 
--- Use a particular exception as our representation for waiting forever.
+-- | Use a particular exception as our representation for waiting forever.
 data BothBottom = BothBottom deriving(Show,Typeable)
 
 instance Exception BothBottom
+
+-- | And another as our representation for a no-longer-needed value
+data DontBother = DontBother deriving(Show,Typeable)
+
+instance Exception DontBother
 
 -- | Unambiguous choice operator.  Equivalent to the ambiguous choice
 -- operator, but with arguments restricted to be equal where not bottom,
@@ -58,7 +63,6 @@ unamb :: a -> a -> a
 unamb = (fmap.fmap) restartingUnsafePerformIO amb
 
 -- unamb a b = restartingUnsafePerformIO (amb a b)
-
 
 restartingUnsafePerformIO :: IO a -> a
 restartingUnsafePerformIO = unsafePerformIO . retry
@@ -180,7 +184,7 @@ race a b = block $ do
   let f x = forkIO $ putCatch x v
   ta <- f a
   tb <- f b
-  let cleanup = killThread ta >> killThread tb
+  let cleanup = throwTo ta DontBother >> throwTo tb DontBother
       loop 0 = throwIO BothBottom
       loop t = do x <- takeMVar v
                   case x of Nothing -> loop (t-1)
@@ -201,6 +205,7 @@ putCatch act v = onException (act >>= putMVar v . Just) (putMVar v Nothing) `cat
                  [ Handler $ \ ErrorCall         {} -> return ()
                  , Handler $ \ BothBottom        {} -> return ()
                  , Handler $ \ PatternMatchFail  {} -> return ()
+                 , Handler $ \ DontBother        {} -> return ()
                  -- This next handler hides bogus black holes, which show up as
                  -- "<<loop>>" messages.  I'd rather eliminate the problem than hide it.
                  -- TODO: Remove and stress-test (e.g., reactive-fieldtrip)
