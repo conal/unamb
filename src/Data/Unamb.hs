@@ -181,7 +181,7 @@ race :: IO a -> IO a -> IO a
 
 race a b = block $ do
   v <- newEmptyMVar
-  let f x = forkIO $ putCatch x v
+  let f x = forkIO $ putCatch (unblock x) v
   ta <- f a
   tb <- f b
   let cleanup = throwTo ta DontBother >> throwTo tb DontBother
