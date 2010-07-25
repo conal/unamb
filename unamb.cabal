@@ -1,5 +1,5 @@
 Name:                unamb
-Version:             0.2.2
+Version:             0.2.3
 Cabal-Version:       >= 1.2
 Synopsis:            Unambiguous choice
 Category:            Concurrency, Data, Other
@@ -14,7 +14,7 @@ Description:
   &#169; 2008 by Conal Elliott; BSD3 license.
   .
   Contributions from: Luke Palmer, Spencer Janssen, Sterling Clover,
-  Bertram Felgenhauer, Peter Verswyvelen, and Svein Ove Aas.
+  Bertram Felgenhauer, Peter Verswyvelen, Svein Ove Aas, and Edward Kmett.
   Please let me know if I've forgotten to list you.
 Author:              Conal Elliott 
 Maintainer:          conal@conal.net
@@ -32,7 +32,8 @@ Flag test
 Library
   hs-Source-Dirs:      src
   Extensions:
-  Build-Depends:       base >= 4 && < 5
+  Build-Depends:       base >= 4 && < 5,
+                       tag-bits >= 0.1 && < 0.2
   Exposed-Modules:     
                        Data.Unamb
   ghc-options:         -Wall

@@ -5,16 +5,16 @@
 -- Module      :  Data.Unamb
 -- Copyright   :  (c) Conal Elliott 2008
 -- License     :  BSD3
--- 
+--
 -- Maintainer  :  conal@conal.net
 -- Stability   :  experimental
--- 
+--
 -- Unambiguous choice
--- 
+--
 -- For non-flat types (where values may be partially defined, rather than
 -- necessarily bottom or fully defined) and information merging, see the
 -- lub package, <http://haskell.org/haskellwiki/Lub>.
--- 
+--
 -- See unamb.cabal for the list of contributors.
 ----------------------------------------------------------------------
 
@@ -23,13 +23,14 @@
 module Data.Unamb
   (
     -- * Purely functional unambiguous choice
-    unamb
+    unamb, unamb'
     -- * Some useful special applications of 'unamb'
   , unambs, assuming, asAgree
-  , parCommute, parIdentity, parAnnihilator
+  , parCommute, parCommuteShortCircuit
+  , parAnnihilator, parIdentity, parAnnihilatorIdentity
   , por, pand, pmin, pmax, pmult
     -- * Some related imperative tools
-  , amb, race
+  , amb, amb', race
     -- * Exception thrown if neither value evaluates
   , BothBottom
   ) where
@@ -40,6 +41,7 @@ import Control.Monad.Instances () -- for function functor
 import Control.Concurrent
 import Control.Exception
 import Data.Typeable
+import Data.TagBits (unsafeIsEvaluated)
 
 -- import Data.IsEvaluated
 
@@ -60,7 +62,16 @@ instance Exception DontBother
 -- If anything kills unamb while it is evaluating (like nested unambs), it can
 -- be retried later but, unlike most functions, work may be lost.
 unamb :: a -> a -> a
-unamb = (fmap.fmap) restartingUnsafePerformIO amb
+unamb a b
+    | unsafeIsEvaluated a = a
+    | unsafeIsEvaluated b = b
+    | otherwise = unamb' a b
+{-# INLINE unamb #-}
+
+-- | For use when we already know that neither argument is already evaluated
+unamb' :: a -> a -> a
+unamb' = (fmap.fmap) restartingUnsafePerformIO amb'
+{-# INLINE unamb' #-}
 
 -- unamb a b = restartingUnsafePerformIO (amb a b)
 
@@ -102,12 +113,12 @@ restartingUnsafePerformIO = unsafePerformIO . retry
    -- Ensuring that the code doesn't execute the retry before the exception
    -- is propagated, throwTo doesn't return until the exception has been
    -- handled.
-   -- 
+   --
    -- Incidentally, all exception handlers run inside an implicit block, and
    -- blocking operations contain an implicit unblock. This ensures that any
    -- further pending exceptions won't mess this scheme up, as they can't be
    -- delivered until after throwTo has been called.
-   -- 
+   --
    retry :: IO a -> IO a
    retry act =
      act `catch` \ (SomeException e) -> do
@@ -118,21 +129,25 @@ restartingUnsafePerformIO = unsafePerformIO . retry
 -- | n-ary 'unamb'
 unambs :: [a] -> a
 unambs []  = undefined
-unambs xs  = foldr1 unamb xs
+unambs xs  = foldr1 unamb' xs `unamb'` foldr findEvaluated undefined xs
+    where
+        findEvaluated a b | unsafeIsEvaluated a = a
+                          | otherwise = b
 
 -- | Ambiguous choice operator.  Yield either value.  Evaluates in
 -- separate threads and picks whichever finishes first.  See also
 -- 'unamb' and 'race'.
 amb :: a -> a -> IO a
-amb a b = do 
-  -- First, check whether one of the values already is evaluated
-  -- #ifdef this out for non-GHC code.
-  a' <- return False --isEvaluated a
-  b' <- return False --isEvaluated b
-  case (a',b') of
-    (True,_) -> return a
-    (_,True) -> return b
-    _        -> race (evaluate a) (evaluate b)
+amb a b
+    | unsafeIsEvaluated a = return a
+    | unsafeIsEvaluated b = return b
+    | otherwise = amb' a b
+{-# INLINE amb #-}
+
+-- | For use when we already know that neither argument is already evaluated
+amb' :: a -> a -> IO a
+amb' a b = race (evaluate a) (evaluate b)
+{-# INLINE amb' #-}
 
 -- | Race two actions against each other in separate threads, and pick
 -- whichever finishes first.  See also 'amb'.
@@ -190,7 +205,7 @@ race a b = block $ do
                   case x of Nothing -> loop (t-1)
                             Just x' -> return x'
   unblock (loop (2 :: Int) `finally` cleanup)
-  
+
 
 -- A thread can bottom-out efficiently by throwing that exception.
 -- Before a thread bails out for any reason, it informs race of its bailing out.
@@ -217,31 +232,46 @@ putCatch act v = onException (act >>= putMVar v . Just) (putMVar v Nothing) `cat
 assuming :: Bool -> a -> a
 assuming True  a = a
 assuming False _ = undefined
+{-# INLINE assuming #-}
 
 -- | The value of agreeing values (or undefined/bottom)
 asAgree :: Eq a => a -> a -> a
 a `asAgree` b = assuming (a == b) a
-
+{-# INLINE asAgree #-}
 
 {--------------------------------------------------------------------
     Some useful special applications of 'unamb'
 --------------------------------------------------------------------}
 
--- | Turn a binary commutative operation into that tries both orders in
+-- | Turn a binary commutative operation into one that tries both orders in
 -- parallel.  Useful when there are special cases that don't require
 -- evaluating both arguments.  For non-flat types and information merging,
 -- see @parCommute@ in the @lub@ package.
 parCommute :: (a -> a -> b) -> (a -> a -> b)
 parCommute op x y = (x `op` y) `unamb` (y `op` x)
+{-# INLINE parCommute #-}
+
+-- | Turn a binary commutative operation into one that may try both orders.
+-- unlike parCommute, if one argument is already evaluated, the function is
+-- tried *only* with that as its first argument and not in both orders. When
+-- in doubt, use 'parCommute'.
+
+parCommuteShortCircuit :: (a -> a -> b) -> (a -> a -> b)
+parCommuteShortCircuit op x y
+  | unsafeIsEvaluated x = x `op` y
+  | unsafeIsEvaluated y = y `op` x
+  | otherwise = parCommute op x y
+{-# INLINE parCommuteShortCircuit #-}
 
 -- | Parallel or
 por :: Bool -> Bool -> Bool
-por = parCommute (||)
+por = parCommuteShortCircuit (||)
+{-# INLINE por #-}
 
 -- | Parallel and
 pand :: Bool -> Bool -> Bool
-pand = parCommute (&&)
-
+pand = parCommuteShortCircuit (&&)
+{-# INLINE pand #-}
 
 -- parAnnihilator op ann = parCommute op'
 --  where
@@ -261,32 +291,56 @@ pand = parCommute (&&)
 -- (&&) & 'False', (||) & 'True', 'min' & 'minBound', 'max' & 'maxBound'.
 -- Tests either argument as annihilator, in parallel.
 parAnnihilator :: Eq a => (a -> a -> a) -> a -> (a -> a -> a)
-parAnnihilator op ann x y =
-  assuming (x == ann) ann `unamb`
-  assuming (y == ann) ann `unamb`
+parAnnihilator op ann x y
+  | unsafeIsEvaluated x && x == ann = ann
+  | unsafeIsEvaluated y && y == ann = ann
+  | otherwise =
+  assuming (x == ann) ann `unamb'`
+  assuming (y == ann) ann `unamb'`
   (x `op` y)
 
 -- | Binary operation with left & right identity element.  For instance, (*) & 1,
 -- (&&) & 'True', (||) & 'False', 'min' & 'maxBound', 'max' & 'minBound'.
 -- Tests either argument as identity, in parallel.
 parIdentity :: (Eq a) => (a -> a -> a) -> a -> a -> a -> a
-parIdentity op ident x y =
-  assuming (x == ident) y `unamb`
-  assuming (y == ident) x `unamb`
+parIdentity op ident x y
+  | unsafeIsEvaluated x && x == ident = y
+  | unsafeIsEvaluated y && y == ident = x
+  | otherwise =
+  assuming (x == ident) y `unamb'`
+  assuming (y == ident) x `unamb'`
   (x `op` y)
 
+parAnnihilatorIdentity :: Eq a => (a -> a -> a) -> a -> a -> a -> a -> a
+parAnnihilatorIdentity op ann ident x y
+  | knownX && x == ann   = ann
+  | knownX && x == ident = y
+  | knownY && y == ann   = ann
+  | knownY && y == ident = y
+  | otherwise =
+  assuming (x == ident) y `unamb'`
+  assuming (x == ann) ann `unamb'`
+  assuming (y == ident) x `unamb'`
+  assuming (y == ann) ann `unamb'`
+  (x `op` y)
+  where
+    knownX = unsafeIsEvaluated x
+    knownY = unsafeIsEvaluated y
 
--- | Parallel min with minBound short-circuit
+-- | Parallel min with minBound short-circuit and maxBound identity
 pmin :: (Ord a, Bounded a) => a -> a -> a
-pmin = parAnnihilator min minBound
+pmin = parAnnihilatorIdentity min minBound maxBound
+{-# INLINE pmin #-}
 
--- | Parallel max with maxBound short-circuit
+-- | Parallel max with maxBound short-circuit and minBound identity
 pmax :: (Ord a, Bounded a) => a -> a -> a
-pmax = parAnnihilator max maxBound
+pmax = parAnnihilatorIdentity max maxBound minBound
+{-# INLINE pmax #-}
 
--- | Parallel multiplication with 0 short-circuit
+-- | Parallel multiplication with 0 short-circuit, and 1 identity
 pmult :: Num a => a -> a -> a
-pmult = parAnnihilator (*) 0
+pmult = parAnnihilatorIdentity (*) 0 1
+{-# INLINE pmult #-}
 
 {-
 
@@ -305,7 +359,7 @@ LT `pmin` undefined
 undefined `pmin` LT
 
 test :: Int -> Int
-test x = f (f x) 
+test x = f (f x)
     where f v = (x `unamb` v) `seq` v
 
 main = do mapM_ (print . test) [0..]
