@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, RecursiveDo, CPP, DeriveDataTypeable #-}
+{-# LANGUAGE ScopedTypeVariables, CPP, DeriveDataTypeable #-}
 {-# OPTIONS_GHC -Wall #-}
 ----------------------------------------------------------------------
 -- |
