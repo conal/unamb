@@ -23,6 +23,8 @@ See also the [[lub]] package, which extends unamb's usefulness with non-flat typ
 
 == Issues ==
 
+Although semantically very simple, unamb has been quite tricky to implement correctly and efficiently.
+
 As of version 0.1.1, unamb requires ghc 6.10 or better.
 
 As of version 0.1.6, unamb correctly handles recursive termination of sub-efforts and automatic restarting, but only with the GHC RTS fixes that first appeared (stably, by my testing) in GHC HEAD version 6.11.20090115.
@@ -30,3 +32,5 @@ The problems and solution can be found in a few places:
 * Email thread: ''[http://n2.nabble.com/problem-with-unamb----doesn%27t-kill-enough-threads-tt1674917.html Problem with unamb -- doesn't kill enough threads]''
 * Blog post: ''[http://conal.net/blog/posts/smarter-termination-for-thread-racing/ Smarter termination for thread racing]''
 * Email thread: ''[http://n2.nabble.com/Re%3A-black-hole-detection-and-concurrency-td2016290.htm Black hole detection and concurrency]''
+
+unamb seems to be working well in version 0.2.2, under GHC 6.10.3.
