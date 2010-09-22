@@ -41,9 +41,15 @@ import Control.Monad.Instances () -- for function functor
 import Control.Concurrent
 import Control.Exception
 import Data.Typeable
-import Data.TagBits (unsafeIsEvaluated)
 
+-- Drop the unsafeIsEvaluated optimization for now.  See comments below.
+
+-- import Data.TagBits (unsafeIsEvaluated)
 -- import Data.IsEvaluated
+
+-- Temporary def until I know how to detect and handle evaluated-as-bottom values.
+unsafeIsEvaluated :: a -> Bool
+unsafeIsEvaluated = const False
 
 -- | Use a particular exception as our representation for waiting forever.
 data BothBottom = BothBottom deriving(Show,Typeable)
@@ -67,6 +73,18 @@ unamb a b
     | unsafeIsEvaluated b = b
     | otherwise = unamb' a b
 {-# INLINE unamb #-}
+
+-- I want something like the following:
+
+-- unamb a b
+--     | unsafeIsEvaluated a = if isBottom a then b else a
+--     | unsafeIsEvaluated b = if isBottom b then a else b
+--     | otherwise = unamb' a b
+
+-- where isBottom assumes that its argument is recognizably evaluated
+-- (unsafeIsEvaluated yields True).  What does an evaluated bottom values
+-- look like in the RTS?
+
 
 -- | For use when we already know that neither argument is already evaluated
 unamb' :: a -> a -> a
@@ -128,11 +146,15 @@ restartingUnsafePerformIO = unsafePerformIO . retry
 
 -- | n-ary 'unamb'
 unambs :: [a] -> a
+unambs = foldr unamb undefined
+
+{-
 unambs []  = undefined
 unambs xs  = foldr1 unamb' xs `unamb'` foldr findEvaluated undefined xs
     where
         findEvaluated a b | unsafeIsEvaluated a = a
                           | otherwise = b
+-}
 
 -- | Ambiguous choice operator.  Yield either value.  Evaluates in
 -- separate threads and picks whichever finishes first.  See also
@@ -238,6 +260,9 @@ assuming False _ = undefined
 asAgree :: Eq a => a -> a -> a
 a `asAgree` b = assuming (a == b) a
 {-# INLINE asAgree #-}
+
+-- Note: asAgree == flatGlb (from Data.Glb in lub package).
+-- Examine uses of asAgree,u and consider whether glb is a better fit.
 
 {--------------------------------------------------------------------
     Some useful special applications of 'unamb'
@@ -345,6 +370,9 @@ pmult = parAnnihilatorIdentity (*) 0 1
 {-
 
 -- Examples:
+
+undefined `unamb` 3 :: Int
+3 `unamb` undefined :: Int
 
 undefined `por` True
 True `por` undefined
