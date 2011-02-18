@@ -7,7 +7,7 @@
 Given any two arguments <hask>u</hask> and <hask>v</hask> that agree unless bottom, the value of <hask>unamb u v</hask> is the more terminating of <hask>u</hask> and <hask>v</hask>.
 Operationally, the value of <hask>unamb u v</hask> becomes available when the earlier of <hask>u</hask> and <hask>v</hask> does.
 The agreement precondition ensures unamb's referential transparency.
-For more info about <hask>unamb</hask> and its use, see the paper ''[http://conal.net/papers/simply-reactive/ Simply Efficient Functional Reactivity]'', sections 10 and 11.
+For more info about <hask>unamb</hask> and its use, see the paper ''[http://conal.net/papers/push-pull-frp/ Push-pull functional reactive programming]'', sections 10 and 11.
 
 <hask>unamb</hask> was originally a part of [[Reactive]].  I moved it to its own package in order to encourage experimentation.
 
