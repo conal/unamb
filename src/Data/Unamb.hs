@@ -39,7 +39,7 @@ import Prelude hiding (catch)
 import System.IO.Unsafe
 import Control.Monad.Instances () -- for function functor
 import Control.Concurrent
-import Control.Exception
+import Control.Exception hiding (unblock)
 import Data.Typeable
 
 -- Drop the unsafeIsEvaluated optimization for now.  See comments below.
@@ -141,7 +141,7 @@ restartingUnsafePerformIO = unsafePerformIO . retry
    retry act =
      act `catch` \ (SomeException e) -> do
        myThreadId >>= flip throwTo e
-       unblock $ retry act
+       mask_ $ retry act
 
 
 -- | n-ary 'unamb'
@@ -216,9 +216,9 @@ race :: IO a -> IO a -> IO a
 -- This version kills descendant threads when killed, but does not restart
 -- any work if it's called by unamb. That code is left in unamb.
 
-race a b = block $ do
+race a b = mask_ $ do
   v <- newEmptyMVar
-  let f x = forkIO $ putCatch (unblock x) v
+  let f x = forkIO $ putCatch (mask_ x) v
   ta <- f a
   tb <- f b
   let cleanup = throwTo ta DontBother >> throwTo tb DontBother
@@ -226,7 +226,7 @@ race a b = block $ do
       loop t = do x <- takeMVar v
                   case x of Nothing -> loop (t-1)
                             Just x' -> return x'
-  unblock (loop (2 :: Int) `finally` cleanup)
+  mask_ (loop (2 :: Int) `finally` cleanup)
 
 
 -- A thread can bottom-out efficiently by throwing that exception.
@@ -363,7 +363,7 @@ pmax = parAnnihilatorIdentity max maxBound minBound
 {-# INLINE pmax #-}
 
 -- | Parallel multiplication with 0 short-circuit, and 1 identity
-pmult :: Num a => a -> a -> a
+pmult :: (Eq a, Num a) => a -> a -> a
 pmult = parAnnihilatorIdentity (*) 0 1
 {-# INLINE pmult #-}
 
