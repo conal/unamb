@@ -3,7 +3,7 @@ Given any two arguments `u` and `v` that agree unless bottom, the value of `unam
 Operationally, the value of `unamb u v` becomes available when the earlier of `u` and `v` does.
 The agreement precondition ensures unamb's referential transparency.
 
-`unamb` and a sample use was originally in the paper [*Push-pull functional reactive programming*](http://conal.net/papers/push-pull-frp/).
+`unamb` and a sample use appeared in the paper [*Push-pull functional reactive programming*](http://conal.net/papers/push-pull-frp/).
 I moved it to its own
 package in order to encourage experimentation.
 
