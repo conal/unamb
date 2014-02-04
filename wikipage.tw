@@ -15,7 +15,7 @@ Besides this wiki page, here are more ways to find out about unamb:
 * Visit the [http://hackage.haskell.org/cgi-bin/hackage-scripts/package/unamb Hackage page] for library documentation and to download & install.
 * Read [http://conal.net/blog/tag/unamb/ related blog posts].
 * Or install with <tt>cabal install unamb</tt>.
-* Get the code repository: <tt>darcs get http://code.haskell.org/unamb</tt>.
+* Get the [https://github.com/conal/unamb code repository].
 <!-- * See the [[unamb/Versions| version history]]. -->
 
 <!-- Please leave comments at the [[Talk:unamb|Talk page]]. -->
