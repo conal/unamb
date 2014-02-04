@@ -35,7 +35,7 @@ module Data.Unamb
   , BothBottom
   ) where
 
-import Prelude hiding (catch)
+import Prelude
 import System.IO.Unsafe
 import Control.Monad.Instances () -- for function functor
 import Control.Concurrent

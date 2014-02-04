@@ -1,6 +1,6 @@
 Name:                unamb
-Version:             0.2.5
-Cabal-Version:       >= 1.2
+Version:             0.2.6
+Cabal-Version:       >= 1.6
 Synopsis:            Unambiguous choice
 Category:            Concurrency, Data, Other
 Description:
@@ -8,6 +8,9 @@ Description:
   wraps thread racing up in a purely functional, semantically simple
   wrapper.  Originally a part of Reactive, I moved unamb to its own
   package in order to encourage experimentation.
+  .
+  Note: unamb correctly implements lub for flat types only.
+  I suggest using the lub package instead of unamb.
   .
   Project wiki page: <http://haskell.org/haskellwiki/unamb>
   .
@@ -24,6 +27,10 @@ Copyright:           (c) 2008-2012 by Conal Elliott
 License:             BSD3
 Stability:           experimental
 build-type:          Simple
+
+source-repository head
+  type:     git
+  location: git://github.com/conal/unamb.git
 
 Flag test
   Description: Enable testing
