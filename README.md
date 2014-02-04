@@ -1,4 +1,4 @@
-unamb [1] contains the "unambiguous choice" operator `unamb`, which wraps thread racing up in a purely functional, semantically simple wrapper.
+This package contains the "unambiguous choice" operator `unamb`, which wraps thread racing up in a purely functional, semantically simple wrapper.
 Given any two arguments `u` and `v` that agree unless bottom, the value of `unamb u v` is the more terminating of `u` and `v`.
 Operationally, the value of `unamb u v` becomes available when the earlier of `u` and `v` does.
 The agreement precondition ensures unamb's referential transparency.
