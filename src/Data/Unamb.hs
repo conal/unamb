@@ -216,9 +216,9 @@ race :: IO a -> IO a -> IO a
 -- This version kills descendant threads when killed, but does not restart
 -- any work if it's called by unamb. That code is left in unamb.
 
-race a b = mask_ $ do
+race a b = mask $ \restore -> do
   v <- newEmptyMVar
-  let f x = forkIO $ putCatch (mask_ x) v
+  let f x = forkIO $ putCatch (restore x) v
   ta <- f a
   tb <- f b
   let cleanup = throwTo ta DontBother >> throwTo tb DontBother
@@ -226,7 +226,7 @@ race a b = mask_ $ do
       loop t = do x <- takeMVar v
                   case x of Nothing -> loop (t-1)
                             Just x' -> return x'
-  mask_ (loop (2 :: Int) `finally` cleanup)
+  loop (2 :: Int) `finally` cleanup
 
 
 -- A thread can bottom-out efficiently by throwing that exception.
