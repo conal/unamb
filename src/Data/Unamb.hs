@@ -341,7 +341,7 @@ parAnnihilatorIdentity op ann ident x y
   | knownX && x == ann   = ann
   | knownX && x == ident = y
   | knownY && y == ann   = ann
-  | knownY && y == ident = y
+  | knownY && y == ident = x
   | otherwise =
   assuming (x == ident) y `unamb'`
   assuming (x == ann) ann `unamb'`
