@@ -37,19 +37,37 @@ module Data.Unamb
 
 import Prelude
 import System.IO.Unsafe
-import Control.Monad.Instances () -- for function functor
 import Control.Concurrent
 import Control.Exception hiding (unblock)
 import Data.Typeable
 
--- Drop the unsafeIsEvaluated optimization for now.  See comments below.
+import GHC.Exts.Heap
 
--- import Data.TagBits (unsafeIsEvaluated)
+
+-- Drop the isEvaluated optimization for now.  See comments below.
+
+-- import Data.TagBits (isEvaluated)
 -- import Data.IsEvaluated
 
 -- Temporary def until I know how to detect and handle evaluated-as-bottom values.
 unsafeIsEvaluated :: a -> Bool
 unsafeIsEvaluated = const False
+
+-- | Detect whether a value is in WHNF.
+-- from https://stackoverflow.com/a/28701687/12153248
+isEvaluated :: a ->  IO Bool
+isEvaluated = go . asBox
+    where
+        go box = do
+            c <- getBoxedClosureData box
+            case c of
+                ThunkClosure     {} -> return False
+                SelectorClosure  {} -> return False
+                APClosure        {} -> return False
+                APStackClosure   {} -> return False
+                IndClosure       {indirectee = b'} -> go b'
+                BlackholeClosure {indirectee = b'} -> go b'
+                _ -> return True
 
 -- | Use a particular exception as our representation for waiting forever.
 data BothBottom = BothBottom deriving(Show,Typeable)
@@ -84,7 +102,6 @@ unamb a b
 -- where isBottom assumes that its argument is recognizably evaluated
 -- (unsafeIsEvaluated yields True).  What does an evaluated bottom values
 -- look like in the RTS?
-
 
 -- | For use when we already know that neither argument is already evaluated
 unamb' :: a -> a -> a
@@ -160,10 +177,15 @@ unambs xs  = foldr1 unamb' xs `unamb'` foldr findEvaluated undefined xs
 -- separate threads and picks whichever finishes first.  See also
 -- 'unamb' and 'race'.
 amb :: a -> a -> IO a
-amb a b
-    | unsafeIsEvaluated a = return a
-    | unsafeIsEvaluated b = return b
-    | otherwise = amb' a b
+amb a b = do
+  a' <- isEvaluated a
+  if a'
+    then return a
+    else do
+      b' <- isEvaluated b
+      if b'
+        then return b
+        else amb' a b
 {-# INLINE amb #-}
 
 -- | For use when we already know that neither argument is already evaluated
